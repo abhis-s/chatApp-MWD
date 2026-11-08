@@ -1,0 +1,16 @@
+{
+  "name": "mwd",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "preinstall": "node scripts/ensure-pnpm.js",
+    "demo": "tsx demo.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
