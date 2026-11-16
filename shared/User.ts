@@ -45,11 +45,11 @@ export class User {
 
     public static fromJSON(json: Record<string, any>): User {
         return new User(
-            json.id,
-            json.username,
-            json.avatar,
-            json.isOnline,
-            json.role
+            json['id'],
+            json['username'],
+            json['avatar'],
+            json['isOnline'],
+            json['role']
         );
     }
 }
