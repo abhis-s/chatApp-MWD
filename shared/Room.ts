@@ -57,11 +57,11 @@ export class Room {
 
     public static fromJSON(json: Record<string, any>): Room {
         return new Room(
-            json.id,
-            json.name,
-            json.createdByAdminId,
-            new Date(json.createdAt),
-            json.participantIds || []
+            json['id'],
+            json['name'],
+            json['createdByAdminId'],
+            new Date(json['createdAt']),
+            json['participantIds'] || []
         );
     }
 }

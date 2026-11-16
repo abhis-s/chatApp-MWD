@@ -48,11 +48,11 @@ export class Ban {
 
     public static fromJSON(json: Record<string, any>): Ban {
         return new Ban(
-            json.id,
-            json.username,
-            json.roomId,
-            new Date(json.bannedAt),
-            json.reason
+            json['id'],
+            json['username'],
+            json['roomId'],
+            new Date(json['bannedAt']),
+            json['reason']
         );
     }
 }
