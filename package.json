@@ -1,19 +1,37 @@
 {
-  "name": "mwd",
+  "name": "chat-app-mwd",
   "version": "1.0.0",
-  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
   "scripts": {
     "preinstall": "node scripts/ensure-pnpm.js",
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
     "demo": "tsx demo.ts",
-    "build": "tsc",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.5",
-    "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@angular/cli": "^22.2.7"
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.7",
+    "@angular/cli": "^22.2.7",
+    "@angular/compiler-cli": "^22.2.0",
+    "@types/node": "^26.6.5",
+    "jsdom": "^30.0.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
   }
 }
