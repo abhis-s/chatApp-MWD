@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "preinstall": "node scripts/ensure-pnpm.js",
-    "demo": "tsx demo.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "start": "tsx server/index.ts",

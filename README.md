@@ -1,10 +1,10 @@
-# Realtime Chat Application — Domain Models
+# Realtime Chat Application
 
 ## Domain Classes (`shared/`)
 
-- [`User.ts`](shared/User.ts): User identity, role permissions (`admin` / `user`), presence (`setOnline`), avatars (`setAvatar`), serialization (`toJSON` / `fromJSON`).
+- [`User.ts`](shared/User.ts): User identity, role check (`isAdmin`), presence (`setOnline`), avatars (`setAvatar`), serialization (`toJSON` / `fromJSON`).
 - [`Room.ts`](shared/Room.ts): Room entity, participant management (`addParticipant`, `removeParticipant`, `hasParticipant`, `getParticipantCount`).
-- [`Message.ts`](shared/Message.ts): Scoped message payload, sender info, avatar, timestamp formatting.
+- [`Message.ts`](shared/Message.ts): Scoped message payload, sender info, avatar, timestamp formatting (`getFormattedTimestamp`).
 - [`Ban.ts`](shared/Ban.ts): Moderation entity, room and global bans (`isBanned`), client storage export (`toClientStorage`).
 
 ## Extensions
@@ -12,69 +12,53 @@
 1. **User Avatars & Presence:** Selectable avatar identifiers and online/offline state across `User` and `Message`.
 2. **Moderation & Room Bans:** Scoped ban records in `Ban` with local storage export and enforcement checks.
 
-## Commands
+## Server (`server/index.ts`)
 
-```bash
-pnpm run demo       # Run demonstration script
-pnpm run typecheck  # TypeScript check (tsc --noEmit)
-pnpm run build      # Compile to ./dist
-```
-
-## Chat server
-
-The server uses Express and the `ws` WebSocket library on the same HTTP server, as shown in the lecture. It uses the shared classes above and saves users, rooms, messages and bans in `data/chat.json`. The file is created on the first change and is ignored by Git. Room membership is saved; online presence is held in memory and resets after a restart.
+Combined Express HTTP API and `ws` WebSocket server on port `3333` (`PORT` env). State persists to `data/chat.json` (`CHAT_DATA_FILE` env); online presence is tracked in memory. The first created user is assigned the `admin` role.
 
 ```bash
 pnpm install
-pnpm start              # HTTP and WebSocket on port 3333
-pnpm run build          # compile TypeScript
-pnpm run start:build    # run compiled server
+pnpm start              # Run HTTP + WebSocket server on port 3333
+pnpm run typecheck      # TypeScript check (tsc --noEmit)
+pnpm run build          # Compile TypeScript to ./dist
+pnpm run start:build    # Run compiled server
 ```
-
-Set `PORT` to change the port, or `CHAT_DATA_FILE` to choose another JSON file. Run the commands from the project directory.
 
 ### HTTP API
 
-All POST bodies are JSON. Responses are JSON too. IDs in the examples come from previous responses.
-
-| Method and path | Body / result |
+| Endpoint | Body / Description |
 | --- | --- |
-| `POST /api/login` | `{ "username": "Alice", "avatar": "fox" }` returns an existing or new user. Avatar is optional. |
-| `GET /api/users` | List users and their current online status. |
-| `GET /api/rooms` | List rooms and their saved members. |
-| `POST /api/rooms` | `{ "name": "General", "adminId": "USER_ID" }` creates a room. |
-| `POST /api/rooms/ROOM_ID/join` | `{ "userId": "USER_ID" }` adds a user to the room. Joining again is safe. |
-| `GET /api/rooms/ROOM_ID/messages?userId=USER_ID` | Get saved messages as a room member. |
-| `POST /api/rooms/ROOM_ID/messages` | `{ "userId": "USER_ID", "text": "Hello" }` saves and broadcasts a message. |
-| `POST /api/bans` | `{ "adminId": "USER_ID", "username": "Alice", "roomId": "ROOM_ID", "reason": "Spam" }` bans a user. Omit `roomId` for a global ban; `reason` is optional. |
+| `POST /api/login` | `{ "username": "Alice" }` — returns existing or new user (`avatar` defaults to `'default'`). |
+| `GET /api/users` | Lists all users and current online status. |
+| `PATCH /api/users/:userId` | `{ "avatar": "fox" }` — updates the user's avatar. |
+| `GET /api/rooms` | Lists all rooms and saved `participantIds`. |
+| `POST /api/rooms` | `{ "name": "General", "adminId": "USER_ID" }` — creates a room (admin only). |
+| `POST /api/rooms/:roomId/join` | `{ "userId": "USER_ID" }` — adds user to room (`403` with `ban` payload if banned). |
+| `GET /api/rooms/:roomId/messages?userId=USER_ID` | Returns room message history (room member or admin). |
+| `POST /api/rooms/:roomId/messages` | `{ "userId": "USER_ID", "text": "Hello" }` — saves and broadcasts a message. |
+| `GET /api/bans?adminId=USER_ID` | Lists active bans (admin only). |
+| `POST /api/bans` | `{ "adminId": "USER_ID", "username": "Alice", "roomId": "ROOM_ID", "reason": "Spam" }` — bans user (`roomId` defaults to `'GLOBAL'`), removes them from saved participants, and disconnects active sockets. |
 
-The first user created is an admin; subsequent users are ordinary users. Login is deliberately just a username lookup, with no passwords or sessions. IDs are supplied by the client, so admin checks and bans are useful for a classroom demo but do **not** provide real authentication or security. Use a trusted environment. A ban disconnects matching active sockets and blocks subsequent messages and room joins.
+### WebSocket Protocol (`ws://localhost:3333/chat`)
 
-For a quick HTTP demo:
+Join a room via `POST /api/rooms/:roomId/join` before connecting its WebSocket.
 
-```bash
-curl -X POST http://localhost:3333/api/login -H 'Content-Type: application/json' -d '{"username":"Admin"}'
-curl -X POST http://localhost:3333/api/rooms -H 'Content-Type: application/json' -d '{"name":"General","adminId":"USER_ID_FROM_LOGIN"}'
-curl http://localhost:3333/api/rooms
-```
+| Direction | Event Payload | Description |
+| --- | --- | --- |
+| Client -> Server | `{ "type": "join", "userId": "USER_ID", "roomId": "ROOM_ID" }` | Subscribes socket to room and marks user online. |
+| Client -> Server | `{ "type": "message", "text": "Hello" }` | Sends a message to the joined room. |
+| Server -> Client | `{ "type": "joined", "roomId": "ROOM_ID", "userId": "USER_ID" }` | Confirms room subscription to the sender. |
+| Server -> Client | `{ "type": "participants", "roomId": "ROOM_ID", "participantIds": ["..."] }` | Broadcasts currently connected user IDs in the room. |
+| Server -> Client | `{ "type": "message", "message": { ... } }` | Broadcasts a new message to all connected room sockets. |
+| Server -> Client | `{ "type": "banned", "ban": { ... } }` | Sent with `Ban.toClientStorage()` payload before closing (`1008`). |
+| Server -> Client | `{ "type": "error", "error": "..." }` | Reports an invalid request or permission error. |
 
-### Test with Postman
+### Postman Test Flow
 
-1. Start the server with `pnpm start`. Send `POST /api/login` with `{"username":"Admin"}`, then repeat for `Alice` and `Bob`. Copy each returned `id`. On a fresh data file, the first user is the admin; if users already exist, find the admin with `GET /api/users`.
-2. Send `POST /api/rooms` with `{"name":"General","adminId":"ADMIN_ID"}` and copy the returned room `id`. Replace the example IDs in the following steps with the actual IDs.
-3. Send `POST /api/rooms/ROOM_ID/join` with `{"userId":"ALICE_ID"}`, then repeat with Bob's ID. Both users are now saved as room members.
-4. Open two WebSocket requests in Postman and connect each to `ws://localhost:3333/chat`. On Alice's connection, send `{"type":"join","userId":"ALICE_ID","roomId":"ROOM_ID"}`. Repeat on Bob's connection using his ID. Both should receive a `participants` event when Bob connects.
-5. Send `{"type":"message","text":"Hi Bob!"}` from Alice's connection. Both connections should receive the `message` event. Send a reply from Bob to check delivery in the other direction.
-6. Request `GET /api/rooms/ROOM_ID/messages?userId=ALICE_ID` to see the saved history. After restarting the server, membership and history remain; each user must reconnect their WebSocket for live updates.
-
-### WebSocket protocol
-
-First join the room using the HTTP endpoint above. Then connect to `ws://localhost:3333/chat` with a browser's native `WebSocket`. Send `{ "type": "join", "userId": "USER_ID", "roomId": "ROOM_ID" }`. The server replies with `joined` and broadcasts a `participants` event to that room. After joining, send `{ "type": "message", "text": "Hello" }`; everyone in that room, including the sender, receives `{ "type": "message", "message": { ... } }`. HTTP-created messages generate the same event. Invalid requests receive `{ "type": "error", "error": "..." }`. A banned client receives a `banned` event and its socket closes. Closing a socket updates online participants and user presence, but saved room membership remains; one user can have multiple connections. The `participants` event lists connected users, whereas the room’s `participantIds` lists saved members.
-
-```js
-const socket = new WebSocket('ws://localhost:3333/chat');
-socket.onopen = () => socket.send(JSON.stringify({ type: 'join', userId: 'USER_ID', roomId: 'ROOM_ID' }));
-socket.onmessage = event => console.log(JSON.parse(event.data));
-// After the connection is open and the join has succeeded:
-// socket.send(JSON.stringify({ type: 'message', text: 'Hello!' }));
-```
+1. Start server with `pnpm start`.
+2. `POST /api/login` for `Admin`, `Alice`, and `Bob`; optionally call `PATCH /api/users/ALICE_ID` with `{"avatar":"fox"}`.
+3. `POST /api/rooms` with `{"name":"General","adminId":"ADMIN_ID"}`.
+4. `POST /api/rooms/ROOM_ID/join` for `ALICE_ID` and `BOB_ID`.
+5. Connect two Postman WebSocket tabs to `ws://localhost:3333/chat` and send `{"type":"join","userId":"...","roomId":"ROOM_ID"}` in each.
+6. Send `{"type":"message","text":"Hi Bob!"}` on Alice's socket and verify broadcast on both tabs.
+7. Check `GET /api/rooms/ROOM_ID/messages?userId=ADMIN_ID` (silent admin monitoring) and `POST /api/bans` to verify live socket disconnect.

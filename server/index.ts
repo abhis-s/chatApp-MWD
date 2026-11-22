@@ -46,7 +46,7 @@ const connections = new Map<WebSocket, Connection>();
 const findUser = (id: unknown) => data.users.find(user => user.id === id);
 const findRoom = (id: unknown) => data.rooms.find(room => room.id === id);
 // Check whether a global ban or a ban for this room applies to the user.
-const banned = (user: User, room: Room) => data.bans.some(ban => ban.isBanned(user.username, room.id));
+const findBan = (user: User, room: Room) => data.bans.find(ban => ban.isBanned(user.username, room.id));
 // Send a JSON event to every open WebSocket currently joined to this room.
 function broadcast(room: Room, event: object): void {
     const payload = JSON.stringify(event);
@@ -81,11 +81,11 @@ const validText = (value: unknown): value is string => typeof value === 'string'
 
 // Find or create a user by username; the first user is an admin. This is not password authentication.
 app.post('/api/login', (req, res) => {
-    const { username, avatar } = req.body ?? {};
+    const { username } = req.body ?? {};
     if (!validText(username)) { res.status(400).json({ error: 'username is required' }); return; }
     let user = data.users.find(item => item.username.toLowerCase() === username.trim().toLowerCase());
     if (!user) {
-        user = new User(randomUUID(), username.trim(), validText(avatar) ? avatar.trim() : 'default', false, data.users.length === 0 ? 'admin' : 'user');
+        user = new User(randomUUID(), username.trim(), 'default', false, data.users.length === 0 ? 'admin' : 'user');
         data.users.push(user);
         save();
     }
@@ -93,13 +93,22 @@ app.post('/api/login', (req, res) => {
 });
 // Return all users, including their current online status.
 app.get('/api/users', (_req, res) => res.json(data.users));
+// Update an existing user's avatar.
+app.patch('/api/users/:userId', (req, res) => {
+    const user = findUser(req.params.userId);
+    if (!user) { res.status(404).json({ error: 'user not found' }); return; }
+    if (!validText(req.body?.avatar)) { res.status(400).json({ error: 'avatar is required' }); return; }
+    user.setAvatar(req.body.avatar.trim());
+    save();
+    res.json(user);
+});
 // Return the available rooms and their saved members.
 app.get('/api/rooms', (_req, res) => res.json(data.rooms));
 // Let an admin create a room with a non-empty name.
 app.post('/api/rooms', (req, res) => {
     const { name, adminId } = req.body ?? {};
     const admin = findUser(adminId);
-    if (!admin?.canCreateRoom()) { res.status(403).json({ error: 'admin required' }); return; }
+    if (!admin?.isAdmin()) { res.status(403).json({ error: 'admin required' }); return; }
     if (!validText(name)) { res.status(400).json({ error: 'name is required' }); return; }
     const room = new Room(randomUUID(), name.trim(), admin.id);
     data.rooms.push(room); save(); res.status(201).json(room);
@@ -109,16 +118,17 @@ app.post('/api/rooms/:roomId/join', (req, res) => {
     const room = findRoom(req.params.roomId);
     const user = findUser(req.body?.userId);
     if (!room || !user) { res.status(404).json({ error: 'room or user not found' }); return; }
-    if (banned(user, room)) { res.status(403).json({ error: 'user is banned from this room' }); return; }
+    const activeBan = findBan(user, room);
+    if (activeBan) { res.status(403).json({ error: 'user is banned from this room', ban: activeBan.toClientStorage() }); return; }
     if (room.addParticipant(user.id)) save();
     res.json(room);
 });
-// Return saved messages only to a room member who is not banned.
+// Return saved messages to a non-banned room member or an admin.
 app.get('/api/rooms/:roomId/messages', (req, res) => {
     const room = findRoom(req.params.roomId);
     const user = findUser(req.query.userId);
     if (!room || !user) { res.status(404).json({ error: 'room or user not found' }); return; }
-    if (banned(user, room) || !room.hasParticipant(user.id)) { res.status(403).json({ error: 'room membership required and user must not be banned' }); return; }
+    if (findBan(user, room) || (!room.hasParticipant(user.id) && !user.isAdmin())) { res.status(403).json({ error: 'room membership or admin required and user must not be banned' }); return; }
     res.json(data.messages.filter(message => message.roomId === req.params.roomId));
 });
 // Validate and save an HTTP message, then broadcast it to the room's WebSocket clients.
@@ -126,22 +136,32 @@ app.post('/api/rooms/:roomId/messages', (req, res) => {
     const room = findRoom(req.params.roomId);
     const user = findUser(req.body?.userId);
     if (!room || !user) { res.status(404).json({ error: 'room or user not found' }); return; }
-    if (banned(user, room)) { res.status(403).json({ error: 'user is banned from this room' }); return; }
+    if (findBan(user, room)) { res.status(403).json({ error: 'user is banned from this room' }); return; }
     if (!room.hasParticipant(user.id)) { res.status(403).json({ error: 'join the room first' }); return; }
     if (!validText(req.body?.text)) { res.status(400).json({ error: 'text is required' }); return; }
     res.status(201).json(createMessage(user, room, req.body.text));
 });
-// Let an admin ban a user globally or from one room and disconnect affected sockets.
+// Return all active bans to an admin.
+app.get('/api/bans', (req, res) => {
+    if (!findUser(req.query.adminId)?.isAdmin()) { res.status(403).json({ error: 'admin required' }); return; }
+    res.json(data.bans);
+});
+// Let an admin ban a user globally or from one room, remove them from saved participants, and disconnect affected sockets.
 app.post('/api/bans', (req, res) => {
     const { adminId, username, roomId = 'GLOBAL', reason } = req.body ?? {};
-    if (!findUser(adminId)?.canCreateRoom()) { res.status(403).json({ error: 'admin required' }); return; }
-    if (!validText(username) || !data.users.some(user => user.username.toLowerCase() === username.trim().toLowerCase())) { res.status(400).json({ error: 'existing username is required' }); return; }
+    if (!findUser(adminId)?.isAdmin()) { res.status(403).json({ error: 'admin required' }); return; }
+    const targetUser = validText(username) ? data.users.find(user => user.username.toLowerCase() === username.trim().toLowerCase()) : undefined;
+    if (!targetUser) { res.status(400).json({ error: 'existing username is required' }); return; }
     if (roomId !== 'GLOBAL' && !findRoom(roomId)) { res.status(404).json({ error: 'room not found' }); return; }
-    const ban = new Ban(randomUUID(), username.trim(), roomId, new Date(), validText(reason) ? reason.trim() : undefined);
-    data.bans.push(ban); save();
+    const ban = new Ban(randomUUID(), targetUser.username, roomId, new Date(), validText(reason) ? reason.trim() : undefined);
+    data.bans.push(ban);
+    for (const room of data.rooms) {
+        if (ban.isBanned(targetUser.username, room.id)) room.removeParticipant(targetUser.id);
+    }
+    save();
     for (const [socket, connection] of connections) {
         if (ban.isBanned(connection.user.username, connection.room.id)) {
-            socket.send(JSON.stringify({ type: 'banned', ban }));
+            socket.send(JSON.stringify({ type: 'banned', ban: ban.toClientStorage() }));
             leave(socket);
             socket.close(1008, 'Banned from room');
         }
@@ -163,7 +183,7 @@ wss.on('connection', socket => {
                 const user = findUser(event.userId);
                 const room = findRoom(event.roomId);
                 if (!user || !room) throw new Error('room or user not found');
-                if (banned(user, room)) throw new Error('user is banned from this room');
+                if (findBan(user, room)) throw new Error('user is banned from this room');
                 if (!room.hasParticipant(user.id)) throw new Error('join the room through the HTTP API first');
                 leave(socket);
                 connections.set(socket, { user, room });
@@ -174,7 +194,7 @@ wss.on('connection', socket => {
                 // Only a joined, non-banned user can send a message to their current room.
                 const connection = connections.get(socket);
                 if (!connection) throw new Error('join a room first');
-                if (banned(connection.user, connection.room)) throw new Error('user is banned from this room');
+                if (findBan(connection.user, connection.room)) throw new Error('user is banned from this room');
                 if (!validText(event.text)) throw new Error('text is required');
                 createMessage(connection.user, connection.room, event.text);
             } else throw new Error('unknown event type');
