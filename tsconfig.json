@@ -8,5 +8,9 @@
     "skipLibCheck": true,
     "outDir": "./dist"
   },
-  "include": ["shared/**/*", "demo.ts"]
+  "include": [
+    "shared/**/*",
+    "demo.ts",
+    "server/**/*"
+  ]
 }
