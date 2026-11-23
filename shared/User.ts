@@ -29,7 +29,7 @@ export class User {
         this.avatar = avatar;
     }
 
-    public canCreateRoom(): boolean {
+    public isAdmin(): boolean {
         return this.role === 'admin';
     }
 

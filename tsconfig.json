@@ -21,6 +21,10 @@
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true
   },
+  "include": [
+    "shared/**/*",
+    "server/**/*"
+  ],
   "files": [],
   "references": [
     {
