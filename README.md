@@ -18,13 +18,10 @@ Combined Express HTTP API and `ws` WebSocket server on port `3333` (`PORT` env).
 
 ```bash
 pnpm install
-pnpm start              # Run HTTP + WebSocket server on port 3333
-pnpm run typecheck      # TypeScript check (tsc --noEmit)
-pnpm run build          # Compile TypeScript to ./dist
-pnpm run start:build    # Run compiled server
-pnpm run demo       # Run demonstration script
-pnpm run typecheck
-pnpm run build
+pnpm run start:server       # Run HTTP + WebSocket server on port 3333
+pnpm run typecheck          # Check server and Angular application
+pnpm run build              # Build server to ./dist and Angular app
+pnpm run start:server:build # Run the compiled server
 ```
 
 ___
@@ -38,7 +35,7 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 To start a local development server, run:
 
 ```bash
-ng serve
+pnpm start
 ```
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
