@@ -44,13 +44,13 @@ export class Message {
 
     public static fromJSON(json: Record<string, any>): Message {
         return new Message(
-            json.id,
-            json.roomId,
-            json.senderId,
-            json.senderUsername,
-            json.senderAvatar,
-            json.text,
-            new Date(json.timestamp)
+            json['id'],
+            json['roomId'],
+            json['senderId'],
+            json['senderUsername'],
+            json['senderAvatar'],
+            json['text'],
+            new Date(json['timestamp'])
         );
     }
 }

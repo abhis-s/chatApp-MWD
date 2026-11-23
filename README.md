@@ -12,19 +12,67 @@
 1. **User Avatars & Presence:** Selectable avatar identifiers and online/offline state across `User` and `Message`.
 2. **Moderation & Room Bans:** Scoped ban records in `Ban` with local storage export and enforcement checks.
 
+## Running locally
+
+Install dependencies, then run the backend and Angular development server in separate terminals:
+
+```bash
+pnpm install
+```
+
+Terminal 1:
+
+```bash
+pnpm run start:server
+```
+
+Terminal 2:
+
+```bash
+pnpm start
+```
+
+Angular is available at `http://localhost:4200/`; the HTTP API and WebSocket server listen on `http://localhost:3333/` and `ws://localhost:3333/chat`. Stop each process with `Ctrl+C` in its terminal. The Angular app currently shows the starter page and is not connected to the backend.
+
 ## Server (`server/index.ts`)
 
 Combined Express HTTP API and `ws` WebSocket server on port `3333` (`PORT` env). State persists to `data/chat.json` (`CHAT_DATA_FILE` env); online presence is tracked in memory. The first created user is assigned the `admin` role.
 
 ```bash
-pnpm install
-pnpm start              # Run HTTP + WebSocket server on port 3333
-pnpm run typecheck      # TypeScript check (tsc --noEmit)
-pnpm run build          # Compile TypeScript to ./dist
-pnpm run start:build    # Run compiled server
+pnpm run typecheck          # Check server and Angular application
+pnpm run build              # Build server and Angular app to ./dist
+pnpm run start:server:build # Run the compiled server after building
 ```
 
-### HTTP API
+## Angular
+
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.7. The development server automatically reloads when you modify source files.
+
+### Code scaffolding
+
+Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+
+```bash
+pnpm exec ng generate component component-name
+```
+
+For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+
+```bash
+pnpm exec ng generate --help
+```
+
+### Building
+
+To build the project run:
+
+```bash
+pnpm run build:client
+```
+
+This builds the Angular application into `dist/chatApp-MWD`. Use `pnpm run build` to build both the server and Angular.
+
+## Server HTTP API
 
 | Endpoint | Body / Description |
 | --- | --- |
@@ -53,12 +101,28 @@ Join a room via `POST /api/rooms/:roomId/join` before connecting its WebSocket.
 | Server -> Client | `{ "type": "banned", "ban": { ... } }` | Sent with `Ban.toClientStorage()` payload before closing (`1008`). |
 | Server -> Client | `{ "type": "error", "error": "..." }` | Reports an invalid request or permission error. |
 
-### Postman Test Flow
+## Postman Test Flow
 
-1. Start server with `pnpm start`.
+1. Start the backend with `pnpm run start:server`.
 2. `POST /api/login` for `Admin`, `Alice`, and `Bob`; optionally call `PATCH /api/users/ALICE_ID` with `{"avatar":"fox"}`.
 3. `POST /api/rooms` with `{"name":"General","adminId":"ADMIN_ID"}`.
 4. `POST /api/rooms/ROOM_ID/join` for `ALICE_ID` and `BOB_ID`.
 5. Connect two Postman WebSocket tabs to `ws://localhost:3333/chat` and send `{"type":"join","userId":"...","roomId":"ROOM_ID"}` in each.
 6. Send `{"type":"message","text":"Hi Bob!"}` on Alice's socket and verify broadcast on both tabs.
 7. Check `GET /api/rooms/ROOM_ID/messages?userId=ADMIN_ID` (silent admin monitoring) and `POST /api/bans` to verify live socket disconnect.
+
+## Running unit tests
+
+To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+
+```bash
+pnpm test
+```
+
+## Running end-to-end tests
+
+An end-to-end testing framework has not been configured.
+
+## Additional Resources
+
+For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

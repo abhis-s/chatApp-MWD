@@ -10,7 +10,7 @@ import { Message } from '../shared/Message.js';
 import { Ban } from '../shared/Ban.js';
 
 // One file stores durable data, including room membership. Online status is rebuilt on connection.
-const dataFile = resolve(process.env.CHAT_DATA_FILE || 'data/chat.json');
+const dataFile = resolve(process.env['CHAT_DATA_FILE'] || 'data/chat.json');
 type Data = { users: User[]; rooms: Room[]; messages: Message[]; bans: Ban[] };
 // Restore saved objects as model instances, or start with empty lists on the first run.
 // Connections do not survive a restart, so users start offline.
@@ -126,7 +126,7 @@ app.post('/api/rooms/:roomId/join', (req, res) => {
 // Return saved messages to a non-banned room member or an admin.
 app.get('/api/rooms/:roomId/messages', (req, res) => {
     const room = findRoom(req.params.roomId);
-    const user = findUser(req.query.userId);
+    const user = findUser(req.query['userId']);
     if (!room || !user) { res.status(404).json({ error: 'room or user not found' }); return; }
     if (findBan(user, room) || (!room.hasParticipant(user.id) && !user.isAdmin())) { res.status(403).json({ error: 'room membership or admin required and user must not be banned' }); return; }
     res.json(data.messages.filter(message => message.roomId === req.params.roomId));
@@ -143,7 +143,7 @@ app.post('/api/rooms/:roomId/messages', (req, res) => {
 });
 // Return all active bans to an admin.
 app.get('/api/bans', (req, res) => {
-    if (!findUser(req.query.adminId)?.isAdmin()) { res.status(403).json({ error: 'admin required' }); return; }
+    if (!findUser(req.query['adminId'])?.isAdmin()) { res.status(403).json({ error: 'admin required' }); return; }
     res.json(data.bans);
 });
 // Let an admin ban a user globally or from one room, remove them from saved participants, and disconnect affected sockets.
@@ -206,6 +206,6 @@ wss.on('connection', socket => {
     socket.on('close', () => leave(socket));
     socket.on('error', error => console.error('WebSocket error:', error.message));
 });
-const port = Number(process.env.PORT || 3333);
+const port = Number(process.env['PORT'] || 3333);
 // Start the HTTP and WebSocket server on the same port.
 server.listen(port, () => console.log(`Chat server listening on http://localhost:${port}`));
