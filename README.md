@@ -12,57 +12,67 @@
 1. **User Avatars & Presence:** Selectable avatar identifiers and online/offline state across `User` and `Message`.
 2. **Moderation & Room Bans:** Scoped ban records in `Ban` with local storage export and enforcement checks.
 
-## Server (`server/index.ts`)
+## Running locally
 
-Combined Express HTTP API and `ws` WebSocket server on port `3333` (`PORT` env). State persists to `data/chat.json` (`CHAT_DATA_FILE` env); online presence is tracked in memory. The first created user is assigned the `admin` role.
+Install dependencies, then run the backend and Angular development server in separate terminals:
 
 ```bash
 pnpm install
-pnpm run start:server       # Run HTTP + WebSocket server on port 3333
-pnpm run typecheck          # Check server and Angular application
-pnpm run build              # Build server to ./dist and Angular app
-pnpm run start:server:build # Run the compiled server
 ```
 
-___
+Terminal 1:
 
-# Angular Proj README: ChatAppMWD
+```bash
+pnpm run start:server
+```
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.7.
-
-## Development server
-
-To start a local development server, run:
+Terminal 2:
 
 ```bash
 pnpm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Angular is available at `http://localhost:4200/`; the HTTP API and WebSocket server listen on `http://localhost:3333/` and `ws://localhost:3333/chat`. Stop each process with `Ctrl+C` in its terminal. The Angular app currently shows the starter page and is not connected to the backend.
 
-## Code scaffolding
+## Server (`server/index.ts`)
+
+Combined Express HTTP API and `ws` WebSocket server on port `3333` (`PORT` env). State persists to `data/chat.json` (`CHAT_DATA_FILE` env); online presence is tracked in memory. The first created user is assigned the `admin` role.
+
+```bash
+pnpm run typecheck          # Check server and Angular application
+pnpm run build              # Build server and Angular app to ./dist
+pnpm run start:server:build # Run the compiled server after building
+```
+
+## Angular
+
+This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.7. The development server automatically reloads when you modify source files.
+
+### Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
 
 ```bash
-ng generate component component-name
+pnpm exec ng generate component component-name
 ```
 
 For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
 
 ```bash
-ng generate --help
+pnpm exec ng generate --help
 ```
 
-## Building
+### Building
 
 To build the project run:
 
 ```bash
-ng build
+pnpm run build:client
 ```
 
-### HTTP API
+This builds the Angular application into `dist/chatApp-MWD`. Use `pnpm run build` to build both the server and Angular.
+
+## Server HTTP API
 
 | Endpoint | Body / Description |
 | --- | --- |
@@ -91,9 +101,9 @@ Join a room via `POST /api/rooms/:roomId/join` before connecting its WebSocket.
 | Server -> Client | `{ "type": "banned", "ban": { ... } }` | Sent with `Ban.toClientStorage()` payload before closing (`1008`). |
 | Server -> Client | `{ "type": "error", "error": "..." }` | Reports an invalid request or permission error. |
 
-### Postman Test Flow
+## Postman Test Flow
 
-1. Start server with `pnpm start`.
+1. Start the backend with `pnpm run start:server`.
 2. `POST /api/login` for `Admin`, `Alice`, and `Bob`; optionally call `PATCH /api/users/ALICE_ID` with `{"avatar":"fox"}`.
 3. `POST /api/rooms` with `{"name":"General","adminId":"ADMIN_ID"}`.
 4. `POST /api/rooms/ROOM_ID/join` for `ALICE_ID` and `BOB_ID`.
@@ -101,25 +111,17 @@ Join a room via `POST /api/rooms/:roomId/join` before connecting its WebSocket.
 6. Send `{"type":"message","text":"Hi Bob!"}` on Alice's socket and verify broadcast on both tabs.
 7. Check `GET /api/rooms/ROOM_ID/messages?userId=ADMIN_ID` (silent admin monitoring) and `POST /api/bans` to verify live socket disconnect.
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
 ## Running unit tests
 
 To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
 
 ```bash
-ng test
+pnpm test
 ```
 
 ## Running end-to-end tests
 
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+An end-to-end testing framework has not been configured.
 
 ## Additional Resources
 
