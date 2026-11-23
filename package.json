@@ -5,14 +5,19 @@
   "packageManager": "pnpm@12.18.0",
   "scripts": {
     "preinstall": "node scripts/ensure-pnpm.js",
-    "start:build": "node dist/server/index.js",
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "start:server": "tsx server/index.ts",
+    "start:server:build": "node dist/server/index.js",
+    "start:build": "pnpm run start:server:build",
+    "build": "pnpm run build:server && pnpm run build:client",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:client": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "demo": "tsx demo.ts",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "pnpm run typecheck:server && ng build --configuration development",
+    "typecheck:server": "tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {
     "@angular/common": "^22.2.0",
